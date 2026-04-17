@@ -41,8 +41,6 @@ ytd-feed-filter-chip-bar-renderer {
         UserAgentOption.systemDefault.rawValue
 
     @State private var page: WebPage
-    @State private var remountToken = UUID()
-    @State private var wasFullscreen = false
 
     init(initialURL: String? = nil) {
         let url: String
@@ -70,21 +68,6 @@ ytd-feed-filter-chip-bar-renderer {
     var body: some View {
         WebView(page)
             .webViewElementFullscreenBehavior(.enabled)
-            .id(remountToken)
-            .onChange(of: page.fullscreenState) { _, newValue in
-                switch newValue {
-                case .enteringFullscreen, .inFullscreen:
-                    wasFullscreen = true
-                case .notInFullscreen where wasFullscreen:
-                    wasFullscreen = false
-                    Task { await page.closeAllMediaPresentations() }
-                    DispatchQueue.main.async {
-                        remountToken = UUID()
-                    }
-                default:
-                    break
-                }
-            }
             .ornament(attachmentAnchor: .scene(.bottom)) {
                 HStack(spacing: 16) {
                     Button {
@@ -127,6 +110,7 @@ ytd-feed-filter-chip-bar-renderer {
         //userContentController.addUserScript(standaloneScript)
 
         userContentController.addUserScript(Self.makeFullscreenRedirectScript())
+        userContentController.addUserScript(Self.makeFullscreenExitRepaintScript())
 
         for styleSheet in model.styleSheets {
             let normalizedStyleSheet = styleSheet.replacingOccurrences(of: "\n", with: "")
@@ -192,6 +176,40 @@ ytd-feed-filter-chip-bar-renderer {
                     return origWebkitRequest.call(this, options);
                 };
             }
+        })();
+        """
+        return WKUserScript(
+            source: source,
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: false
+        )
+    }
+
+    /// On fullscreen exit, forces the `<video>` element's compositing layer to reattach.
+    /// Without this, visionOS WebKit leaves the video layer detached — audio keeps playing
+    /// but the video frame stays blank in the inline player.
+    private static func makeFullscreenExitRepaintScript() -> WKUserScript {
+        let source = """
+        (function() {
+            function nudge() {
+                document.querySelectorAll('video').forEach(function(v) {
+                    const prev = v.style.transform;
+                    v.style.transform = 'translateZ(0)';
+                    requestAnimationFrame(function() {
+                        v.style.transform = prev;
+                        void v.offsetHeight;
+                    });
+                });
+                window.dispatchEvent(new Event('resize'));
+            }
+            function onExit() {
+                if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+                    nudge();
+                }
+            }
+            document.addEventListener('fullscreenchange', onExit, true);
+            document.addEventListener('webkitfullscreenchange', onExit, true);
+            document.addEventListener('webkitendfullscreen', nudge, true);
         })();
         """
         return WKUserScript(
