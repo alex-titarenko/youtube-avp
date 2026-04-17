@@ -41,6 +41,8 @@ ytd-feed-filter-chip-bar-renderer {
         UserAgentOption.systemDefault.rawValue
 
     @State private var page: WebPage
+    @State private var remountToken = UUID()
+    @State private var wasFullscreen = false
 
     init(initialURL: String? = nil) {
         let url: String
@@ -56,7 +58,7 @@ ytd-feed-filter-chip-bar-renderer {
         let model = WebViewModel(
             url: url,
             userAgent: stored.userAgentString,
-            styleSheets: Self.stylesheets
+            styleSheets: []//Self.stylesheets
         )
         _page = State(wrappedValue: Self.makePage(from: model))
     }
@@ -68,6 +70,21 @@ ytd-feed-filter-chip-bar-renderer {
     var body: some View {
         WebView(page)
             .webViewElementFullscreenBehavior(.enabled)
+            .id(remountToken)
+            .onChange(of: page.fullscreenState) { _, newValue in
+                switch newValue {
+                case .enteringFullscreen, .inFullscreen:
+                    wasFullscreen = true
+                case .notInFullscreen where wasFullscreen:
+                    wasFullscreen = false
+                    Task { await page.closeAllMediaPresentations() }
+                    DispatchQueue.main.async {
+                        remountToken = UUID()
+                    }
+                default:
+                    break
+                }
+            }
             .ornament(attachmentAnchor: .scene(.bottom)) {
                 HStack(spacing: 16) {
                     Button {
@@ -107,7 +124,9 @@ ytd-feed-filter-chip-bar-renderer {
             injectionTime: .atDocumentStart,
             forMainFrameOnly: false
         )
-        userContentController.addUserScript(standaloneScript)
+        //userContentController.addUserScript(standaloneScript)
+
+        userContentController.addUserScript(Self.makeFullscreenRedirectScript())
 
         for styleSheet in model.styleSheets {
             let normalizedStyleSheet = styleSheet.replacingOccurrences(of: "\n", with: "")
@@ -144,5 +163,41 @@ ytd-feed-filter-chip-bar-renderer {
         }
 
         return page
+    }
+
+    /// Routes `Element.requestFullscreen` calls on non-`<video>` elements (e.g. YouTube's
+    /// player container) down to the underlying `<video>`, so fullscreen goes through
+    /// visionOS's native AVPlayerViewController path instead of the broken element-fullscreen path.
+    private static func makeFullscreenRedirectScript() -> WKUserScript {
+        let source = """
+        (function() {
+            function findVideo(el) {
+                if (!el) return document.querySelector('video');
+                if (el.tagName === 'VIDEO') return el;
+                return el.querySelector('video') || document.querySelector('video');
+            }
+            const origRequest = Element.prototype.requestFullscreen;
+            if (origRequest) {
+                Element.prototype.requestFullscreen = function(options) {
+                    const v = findVideo(this);
+                    if (v && v !== this) return origRequest.call(v, options);
+                    return origRequest.call(this, options);
+                };
+            }
+            const origWebkitRequest = Element.prototype.webkitRequestFullscreen;
+            if (origWebkitRequest) {
+                Element.prototype.webkitRequestFullscreen = function(options) {
+                    const v = findVideo(this);
+                    if (v && v !== this) return origWebkitRequest.call(v, options);
+                    return origWebkitRequest.call(this, options);
+                };
+            }
+        })();
+        """
+        return WKUserScript(
+            source: source,
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: false
+        )
     }
 }
