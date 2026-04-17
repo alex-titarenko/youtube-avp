@@ -11,7 +11,7 @@ import RealityKit
 struct ContentView: View {
     let DefaultAppUrl = "https://www.youtube.com/"
     let DefaultUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0"
-        
+    
     @ObservedObject var webViewModel: WebViewModel
     
     init(url: String? = nil) {
@@ -52,7 +52,7 @@ ytd-feed-filter-chip-bar-renderer {
     }
     
     var body: some View {
-        WebView(webViewModel: webViewModel)
+        RichWebView(webViewModel: webViewModel)
     }
 }
 
