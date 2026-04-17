@@ -41,6 +41,7 @@ ytd-feed-filter-chip-bar-renderer {
         UserAgentOption.systemDefault.rawValue
 
     @State private var page: WebPage
+    @State private var canGoBack = false
 
     init(initialURL: String? = nil) {
         let url: String
@@ -71,6 +72,15 @@ ytd-feed-filter-chip-bar-renderer {
             .ornament(attachmentAnchor: .scene(.bottom)) {
                 HStack(spacing: 16) {
                     Button {
+                        if let back = page.backForwardList.backList.last {
+                            _ = page.load(back)
+                        }
+                    } label: {
+                        Image(systemName: "chevron.backward")
+                    }
+                    .disabled(!canGoBack)
+
+                    Button {
                         page.reload()
                     } label: {
                         Image(systemName: "arrow.clockwise")
@@ -91,6 +101,9 @@ ytd-feed-filter-chip-bar-renderer {
                 if let url = page.url {
                     page.load(URLRequest(url: url))
                 }
+            }
+            .onChange(of: page.url) { _, _ in
+                canGoBack = !page.backForwardList.backList.isEmpty
             }
     }
 
