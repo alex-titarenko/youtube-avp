@@ -67,7 +67,7 @@ ytd-feed-filter-chip-bar-renderer {
 
     var body: some View {
         WebView(page)
-            .webViewContentBackground(.hidden)
+            .webViewElementFullscreenBehavior(.enabled)
             .ornament(attachmentAnchor: .scene(.bottom)) {
                 HStack(spacing: 16) {
                     Button {
@@ -98,8 +98,17 @@ ytd-feed-filter-chip-bar-renderer {
         var configuration = WebPage.Configuration()
         configuration.limitsNavigationsToAppBoundDomains = true
         configuration.mediaPlaybackBehavior = .allowsInlinePlayback
+        configuration.allowsAirPlayForMediaPlayback = true
 
         let userContentController = WKUserContentController()
+
+        let standaloneScript = WKUserScript(
+            source: "Object.defineProperty(navigator, 'standalone', { get: () => true, configurable: true });",
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: false
+        )
+        userContentController.addUserScript(standaloneScript)
+
         for styleSheet in model.styleSheets {
             let normalizedStyleSheet = styleSheet.replacingOccurrences(of: "\n", with: "")
 
