@@ -102,13 +102,6 @@ ytd-feed-filter-chip-bar-renderer {
 
         let userContentController = WKUserContentController()
 
-        let standaloneScript = WKUserScript(
-            source: "Object.defineProperty(navigator, 'standalone', { get: () => true, configurable: true });",
-            injectionTime: .atDocumentStart,
-            forMainFrameOnly: false
-        )
-        //userContentController.addUserScript(standaloneScript)
-
         userContentController.addUserScript(Self.makeFullscreenRedirectScript())
         userContentController.addUserScript(Self.makeFullscreenExitRepaintScript())
 
