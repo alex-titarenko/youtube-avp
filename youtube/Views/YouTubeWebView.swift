@@ -112,8 +112,8 @@ ytd-feed-filter-chip-bar-renderer {
             WebView(page)
                 .webViewElementFullscreenBehavior(.enabled)
         }
-        .ornament(attachmentAnchor: .scene(.bottom)) {
-            HStack(spacing: 16) {
+        .toolbar {
+            ToolbarItemGroup(placement: .bottomOrnament) {
                 Button {
                     if let back = page.backForwardList.backList.last {
                         _ = page.load(back)
@@ -135,8 +135,6 @@ ytd-feed-filter-chip-bar-renderer {
                     Image(systemName: "gearshape")
                 }
             }
-            .padding(12)
-            .glassBackgroundEffect()
         }
         .onChange(of: navSelection) { _, newValue in
             navigate(to: newValue.url)
