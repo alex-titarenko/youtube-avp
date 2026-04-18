@@ -40,10 +40,41 @@ ytd-feed-filter-chip-bar-renderer {
     @AppStorage("userAgentOption") private var userAgentRaw: String =
         UserAgentOption.systemDefault.rawValue
 
+    private enum NavItem: String, Hashable, CaseIterable {
+        case home, watchLater, playlists, downloads
+
+        var title: String {
+            switch self {
+            case .home: "Home"
+            case .watchLater: "Watch Later"
+            case .playlists: "Playlists"
+            case .downloads: "Downloads"
+            }
+        }
+
+        var systemImage: String {
+            switch self {
+            case .home: "house"
+            case .watchLater: "clock"
+            case .playlists: "rectangle.stack"
+            case .downloads: "arrow.down.circle"
+            }
+        }
+
+        var url: String {
+            switch self {
+            case .home: "https://www.youtube.com/"
+            case .watchLater: "https://www.youtube.com/playlist?list=WL"
+            case .playlists: "https://www.youtube.com/feed/playlists"
+            case .downloads: "https://www.youtube.com/feed/downloads"
+            }
+        }
+    }
+
     @State private var page: WebPage
     @State private var canGoBack = false
     @State private var isSettingsPresented = false
-    @State private var isNavExpanded = false
+    @State private var navSelection: NavItem = .home
 
     init(initialURL: String? = nil) {
         let url: String
@@ -69,69 +100,59 @@ ytd-feed-filter-chip-bar-renderer {
     }
 
     var body: some View {
-        WebView(page)
-            .webViewElementFullscreenBehavior(.enabled)
-            .ornament(attachmentAnchor: .scene(.bottom)) {
-                HStack(spacing: 16) {
-                    Button {
-                        if let back = page.backForwardList.backList.last {
-                            _ = page.load(back)
-                        }
-                    } label: {
-                        Image(systemName: "chevron.backward")
+        TabView(selection: $navSelection) {
+            ForEach(NavItem.allCases, id: \.self) { item in
+                Tab(item.title, systemImage: item.systemImage, value: item) {
+                    EmptyView()
+                }
+            }
+        }
+        .tabViewStyle(.sidebarAdaptable)
+        .overlay {
+            WebView(page)
+                .webViewElementFullscreenBehavior(.enabled)
+        }
+        .ornament(attachmentAnchor: .scene(.bottom)) {
+            HStack(spacing: 16) {
+                Button {
+                    if let back = page.backForwardList.backList.last {
+                        _ = page.load(back)
                     }
-                    .disabled(!canGoBack)
+                } label: {
+                    Image(systemName: "chevron.backward")
+                }
+                .disabled(!canGoBack)
 
-                    Button {
-                        page.reload()
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                    }
+                Button {
+                    page.reload()
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                }
 
-                    Button {
-                        isSettingsPresented = true
-                    } label: {
-                        Image(systemName: "gearshape")
-                    }
-                }
-                .padding(12)
-                .glassBackgroundEffect()
-            }
-            .ornament(attachmentAnchor: .scene(.leading)) {
-                VStack(alignment: .leading, spacing: 16) {
-                    Button { navigate(to: Self.homeURL) } label: {
-                        Label("Home", systemImage: "house")
-                    }
-                    Button { navigate(to: "https://www.youtube.com/playlist?list=WL") } label: {
-                        Label("Watch Later", systemImage: "clock")
-                    }
-                    Button { navigate(to: "https://www.youtube.com/feed/playlists") } label: {
-                        Label("Playlists", systemImage: "rectangle.stack")
-                    }
-                    Button { navigate(to: "https://www.youtube.com/feed/downloads") } label: {
-                        Label("Downloads", systemImage: "arrow.down.circle")
-                    }
-                }
-                .labelStyle(AdaptiveLabelStyle(showsTitle: isNavExpanded))
-                .animation(.easeInOut(duration: 0.2), value: isNavExpanded)
-                .padding(12)
-                .glassBackgroundEffect()
-                .onHover { hovering in
-                    isNavExpanded = hovering
+                Button {
+                    isSettingsPresented = true
+                } label: {
+                    Image(systemName: "gearshape")
                 }
             }
-            .sheet(isPresented: $isSettingsPresented) {
-                YouTubeSettingsView(userAgentRaw: $userAgentRaw)
+            .padding(12)
+            .glassBackgroundEffect()
+        }
+        .onChange(of: navSelection) { _, newValue in
+            navigate(to: newValue.url)
+        }
+        .sheet(isPresented: $isSettingsPresented) {
+            YouTubeSettingsView(userAgentRaw: $userAgentRaw)
+        }
+        .onChange(of: userAgentRaw) { _, _ in
+            page.customUserAgent = userAgent.userAgentString
+            if let url = page.url {
+                page.load(URLRequest(url: url))
             }
-            .onChange(of: userAgentRaw) { _, _ in
-                page.customUserAgent = userAgent.userAgentString
-                if let url = page.url {
-                    page.load(URLRequest(url: url))
-                }
-            }
-            .onChange(of: page.url) { _, _ in
-                canGoBack = !page.backForwardList.backList.isEmpty
-            }
+        }
+        .onChange(of: page.url) { _, _ in
+            canGoBack = !page.backForwardList.backList.isEmpty
+        }
     }
 
     private func navigate(to urlString: String) {
@@ -256,18 +277,5 @@ ytd-feed-filter-chip-bar-renderer {
             injectionTime: .atDocumentStart,
             forMainFrameOnly: false
         )
-    }
-}
-
-private struct AdaptiveLabelStyle: LabelStyle {
-    var showsTitle: Bool
-
-    func makeBody(configuration: Configuration) -> some View {
-        HStack(spacing: 12) {
-            configuration.icon
-            if showsTitle {
-                configuration.title
-            }
-        }
     }
 }
