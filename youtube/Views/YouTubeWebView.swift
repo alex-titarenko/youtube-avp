@@ -42,6 +42,7 @@ ytd-feed-filter-chip-bar-renderer {
 
     @State private var page: WebPage
     @State private var canGoBack = false
+    @State private var isSettingsPresented = false
 
     init(initialURL: String? = nil) {
         let url: String
@@ -86,15 +87,17 @@ ytd-feed-filter-chip-bar-renderer {
                         Image(systemName: "arrow.clockwise")
                     }
 
-                    Picker("User Agent", selection: $userAgentRaw) {
-                        ForEach(UserAgentOption.allCases) { option in
-                            Text(option.displayName).tag(option.rawValue)
-                        }
+                    Button {
+                        isSettingsPresented = true
+                    } label: {
+                        Image(systemName: "gearshape")
                     }
-                    .pickerStyle(.segmented)
                 }
                 .padding(12)
                 .glassBackgroundEffect()
+            }
+            .sheet(isPresented: $isSettingsPresented) {
+                YouTubeSettingsView(userAgentRaw: $userAgentRaw)
             }
             .onChange(of: userAgentRaw) { _, _ in
                 page.customUserAgent = userAgent.userAgentString
@@ -225,3 +228,5 @@ ytd-feed-filter-chip-bar-renderer {
         )
     }
 }
+
+
