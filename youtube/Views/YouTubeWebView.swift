@@ -11,37 +11,7 @@ struct YouTubeWebView: View {
 
     private static let stylesheets: [String] = [
         """
-html.avp-no-select, html.avp-no-select * {
-    user-select: none !important;
-    -webkit-user-select: none !important;
-    -webkit-touch-callout: none !important;
-}
-""",
-        """
-html[dark] {
-    background-color: transparent !important;
-}
-
-html[dark], [dark] {
-    --yt-spec-base-background: transparent !important;
-    --ytd-searchbox-background: transparent !important;
-}
-
-/* Sidebar */
-#guide-content.ytd-app {
-    background-color: rgba(0, 0, 0, 0.8);
-}
-
-/* Top bar */
-#masthead-container {
-    backdrop-filter: contrast(0.1);
-}
-
-/* Feed filter */
-ytd-feed-filter-chip-bar-renderer {
-    display: none;
-}
-""",
+        """,
     ]
 
     @AppStorage(SettingsKeys.userAgentOption)
@@ -171,9 +141,27 @@ ytd-feed-filter-chip-bar-renderer {
     }
 
     private func applyTextSelectionSetting() {
-        let js = "document.documentElement.classList.toggle('avp-no-select', \(disableTextSelection));"
+        let js = disableTextSelection ? Self.addNoSelectStyleJS : Self.removeNoSelectStyleJS
         Task { try? await page.callJavaScript(js) }
     }
+
+    private static let addNoSelectStyleJS = """
+    (function() {
+        var id = 'avp-no-select-style';
+        if (document.getElementById(id)) return;
+        var s = document.createElement('style');
+        s.id = id;
+        s.textContent = '*, *::before, *::after { user-select: none !important; -webkit-user-select: none !important; -webkit-touch-callout: none !important; }';
+        (document.head || document.documentElement).appendChild(s);
+    })();
+    """
+
+    private static let removeNoSelectStyleJS = """
+    (function() {
+        var s = document.getElementById('avp-no-select-style');
+        if (s) s.remove();
+    })();
+    """
 
     private func navigate(to urlString: String) {
         if let url = URL(string: urlString) {
@@ -191,6 +179,12 @@ ytd-feed-filter-chip-bar-renderer {
 
         userContentController.addUserScript(Self.makeFullscreenRedirectScript())
         userContentController.addUserScript(Self.makeFullscreenExitRepaintScript())
+
+        let initialDisableSelection =
+            UserDefaults.standard.object(forKey: SettingsKeys.disableTextSelection) as? Bool ?? true
+        if initialDisableSelection {
+            userContentController.addUserScript(Self.makeDisableSelectionScript())
+        }
 
         for styleSheet in model.styleSheets {
             let normalizedStyleSheet = styleSheet.replacingOccurrences(of: "\n", with: "")
@@ -227,6 +221,10 @@ ytd-feed-filter-chip-bar-renderer {
         }
 
         return page
+    }
+
+    private static func makeDisableSelectionScript() -> WKUserScript {
+        WKUserScript(source: addNoSelectStyleJS, injectionTime: .atDocumentEnd, forMainFrameOnly: false)
     }
 
     /// Routes `Element.requestFullscreen` calls on non-`<video>` elements (e.g. YouTube's
