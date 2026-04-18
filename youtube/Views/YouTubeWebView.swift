@@ -43,6 +43,7 @@ ytd-feed-filter-chip-bar-renderer {
     @State private var page: WebPage
     @State private var canGoBack = false
     @State private var isSettingsPresented = false
+    @State private var isNavExpanded = false
 
     init(initialURL: String? = nil) {
         let url: String
@@ -96,6 +97,29 @@ ytd-feed-filter-chip-bar-renderer {
                 .padding(12)
                 .glassBackgroundEffect()
             }
+            .ornament(attachmentAnchor: .scene(.leading)) {
+                VStack(alignment: .leading, spacing: 16) {
+                    Button { navigate(to: Self.homeURL) } label: {
+                        Label("Home", systemImage: "house")
+                    }
+                    Button { navigate(to: "https://www.youtube.com/playlist?list=WL") } label: {
+                        Label("Watch Later", systemImage: "clock")
+                    }
+                    Button { navigate(to: "https://www.youtube.com/feed/playlists") } label: {
+                        Label("Playlists", systemImage: "rectangle.stack")
+                    }
+                    Button { navigate(to: "https://www.youtube.com/feed/downloads") } label: {
+                        Label("Downloads", systemImage: "arrow.down.circle")
+                    }
+                }
+                .labelStyle(AdaptiveLabelStyle(showsTitle: isNavExpanded))
+                .animation(.easeInOut(duration: 0.2), value: isNavExpanded)
+                .padding(12)
+                .glassBackgroundEffect()
+                .onHover { hovering in
+                    isNavExpanded = hovering
+                }
+            }
             .sheet(isPresented: $isSettingsPresented) {
                 YouTubeSettingsView(userAgentRaw: $userAgentRaw)
             }
@@ -108,6 +132,12 @@ ytd-feed-filter-chip-bar-renderer {
             .onChange(of: page.url) { _, _ in
                 canGoBack = !page.backForwardList.backList.isEmpty
             }
+    }
+
+    private func navigate(to urlString: String) {
+        if let url = URL(string: urlString) {
+            page.load(URLRequest(url: url))
+        }
     }
 
     private static func makePage(from model: WebViewModel) -> WebPage {
@@ -229,4 +259,15 @@ ytd-feed-filter-chip-bar-renderer {
     }
 }
 
+private struct AdaptiveLabelStyle: LabelStyle {
+    var showsTitle: Bool
 
+    func makeBody(configuration: Configuration) -> some View {
+        HStack(spacing: 12) {
+            configuration.icon
+            if showsTitle {
+                configuration.title
+            }
+        }
+    }
+}
