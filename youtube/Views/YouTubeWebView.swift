@@ -11,6 +11,13 @@ struct YouTubeWebView: View {
 
     private static let stylesheets: [String] = [
         """
+html.avp-no-select, html.avp-no-select * {
+    user-select: none !important;
+    -webkit-user-select: none !important;
+    -webkit-touch-callout: none !important;
+}
+""",
+        """
 html[dark] {
     background-color: transparent !important;
 }
@@ -37,8 +44,11 @@ ytd-feed-filter-chip-bar-renderer {
 """,
     ]
 
-    @AppStorage("userAgentOption") private var userAgentRaw: String =
-        UserAgentOption.systemDefault.rawValue
+    @AppStorage(SettingsKeys.userAgentOption)
+    private var userAgentRaw: String = UserAgentOption.systemDefault.rawValue
+    
+    @AppStorage(SettingsKeys.disableTextSelection)
+    private var disableTextSelection: Bool = true
 
     private enum NavItem: String, Hashable, CaseIterable {
         case home, watchLater, playlists, downloads
@@ -84,13 +94,13 @@ ytd-feed-filter-chip-bar-renderer {
             url = Self.homeURL
         }
 
-        let stored = UserDefaults.standard.string(forKey: "userAgentOption")
+        let stored = UserDefaults.standard.string(forKey: SettingsKeys.userAgentOption)
             .flatMap(UserAgentOption.init(rawValue:)) ?? .systemDefault
 
         let model = WebViewModel(
             url: url,
             userAgent: stored.userAgentString,
-            styleSheets: []//Self.stylesheets
+            styleSheets: Self.stylesheets
         )
         _page = State(wrappedValue: Self.makePage(from: model))
     }
@@ -140,7 +150,7 @@ ytd-feed-filter-chip-bar-renderer {
             navigate(to: newValue.url)
         }
         .sheet(isPresented: $isSettingsPresented) {
-            YouTubeSettingsView(userAgentRaw: $userAgentRaw)
+            YouTubeSettingsView()
         }
         .onChange(of: userAgentRaw) { _, _ in
             page.customUserAgent = userAgent.userAgentString
@@ -148,9 +158,21 @@ ytd-feed-filter-chip-bar-renderer {
                 page.load(URLRequest(url: url))
             }
         }
+        .onChange(of: disableTextSelection) { _, _ in
+            applyTextSelectionSetting()
+        }
         .onChange(of: page.url) { _, _ in
             canGoBack = !page.backForwardList.backList.isEmpty
+            applyTextSelectionSetting()
         }
+        .task {
+            applyTextSelectionSetting()
+        }
+    }
+
+    private func applyTextSelectionSetting() {
+        let js = "document.documentElement.classList.toggle('avp-no-select', \(disableTextSelection));"
+        Task { try? await page.callJavaScript(js) }
     }
 
     private func navigate(to urlString: String) {

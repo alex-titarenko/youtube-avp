@@ -10,8 +10,13 @@ import SwiftUI
 import WebKit
 
 struct YouTubeSettingsView: View {
-    @Binding var userAgentRaw: String
     @Environment(\.dismiss) private var dismiss
+    
+    @AppStorage(SettingsKeys.userAgentOption)
+    private var userAgentRaw: String = UserAgentOption.systemDefault.rawValue
+    
+    @AppStorage(SettingsKeys.disableTextSelection)
+    private var disableTextSelection: Bool = true
 
     var body: some View {
         NavigationStack {
@@ -21,6 +26,7 @@ struct YouTubeSettingsView: View {
                         Text(option.displayName).tag(option.rawValue)
                     }
                 }
+                Toggle("Disable Text Selection", isOn: $disableTextSelection)
             }
             .navigationTitle("Settings")
             .toolbar {
